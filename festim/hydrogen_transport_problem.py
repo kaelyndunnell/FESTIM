@@ -231,8 +231,8 @@ class HydrogenTransportProblem:
 
     def initialise(self):
         self.create_species_from_traps()
-        self.define_meshtags_and_measures()
         self.define_function_spaces()
+        self.define_meshtags_and_measures()
         self.assign_functions_to_species()
 
         self.t = fem.Constant(self.mesh.mesh, 0.0)
@@ -393,43 +393,29 @@ class HydrogenTransportProblem:
         D.interpolate(D_expr)
         return D, D_expr
 
-    def create_submeshes(self):
-        """
-        Creates submeshes for each volume subdomain
-        """
-        for subdomain in self.volume_subdomains:
-            # TODO document these new attributes
-            subdomain.submesh, subdomain.submesh_to_mesh, subdomain.v_map = dolfinx.mesh.create_submesh(
-                self.mesh.mesh, self.mesh.vdim, self.volume_meshtags.find(subdomain.id)
-            )[0:3]
-
-
     def define_function_spaces(self):
         """Creates the function space of the model, creates a mixed element if
         model is multispecies. Creates the main solution and previous solution
         function u and u_n. Create global DG function spaces of degree 0 and 1
         for the global diffusion coefficient"""
-        self.function_spaces = {}
-        self.u = {}
-        self.u_n = {}
 
-        self.create_submeshes()
-        for subdomain in self.volume_subdomains:
-            element_CG = basix.ufl.element(
-                basix.ElementFamily.P,
-                subdomain.submesh.basix_cell(),
-                1,
-                basix.LagrangeVariant.equispaced,
-            )
+        degree = 1
+        element_CG = basix.ufl.element(
+            basix.ElementFamily.P,
+            self.mesh.mesh.basix_cell(),
+            degree,
+            basix.LagrangeVariant.equispaced,
+        )
+        if not self.multispecies:
+            element = element_CG
+        else:
             elements = []
             for spe in self.species:
                 if isinstance(spe, F.Species):
                     elements.append(element_CG)
-            mixed_element = basix.ufl.mixed_element(elements)
-            V = fem.functionspace(subdomain.submesh, mixed_element)
-            self.function_spaces[subdomain] = V
-            self.u[subdomain] = fem.Function(V)
-            self.u_n[subdomain] = fem.Function(V)
+            element = basix.ufl.mixed_element(elements)
+
+        self.function_space = fem.functionspace(self.mesh.mesh, element)
 
         # create global DG function spaces of degree 0 and 1
         element_DG0 = basix.ufl.element(
@@ -447,21 +433,36 @@ class HydrogenTransportProblem:
         self.V_DG_0 = fem.functionspace(self.mesh.mesh, element_DG0)
         self.V_DG_1 = fem.functionspace(self.mesh.mesh, element_DG1)
 
+        self.u = fem.Function(self.function_space)
+        self.u_n = fem.Function(self.function_space)
 
     def assign_functions_to_species(self):
         """Creates the solution, prev solution, test function and
         post-processing solution for each species, if model is multispecies,
         created a collapsed function space for each species"""
 
-        for subdomain in self.volume_subdomains:
-            sub_solutions = list(ufl.split(self.u[subdomain]))
-            sub_prev_solution = list(ufl.split(self.u_n[subdomain]))
-            sub_test_functions = list(ufl.TestFunctions(self.function_spaces[subdomain]))
+        if not self.multispecies:
+            sub_solutions = [self.u]
+            sub_prev_solution = [self.u_n]
+            sub_test_functions = [ufl.TestFunction(self.function_space)]
+            self.species[0].sub_function_space = self.function_space
+            self.species[0].post_processing_solution = self.u
+        else:
+            sub_solutions = list(ufl.split(self.u))
+            sub_prev_solution = list(ufl.split(self.u_n))
+            sub_test_functions = list(ufl.TestFunctions(self.function_space))
+
             for idx, spe in enumerate(self.species):
-                spe.solution = sub_solutions[idx]
-                spe.prev_solution = sub_prev_solution[idx]
-                spe.test_function = sub_test_functions[idx]
-                spe.post_processing_solution = self.u[subdomain].sub(idx)
+                spe.sub_function_space = self.function_space.sub(idx)
+                spe.post_processing_solution = self.u.sub(idx)
+                spe.collapsed_function_space, _ = self.function_space.sub(
+                    idx
+                ).collapse()
+
+        for idx, spe in enumerate(self.species):
+            spe.solution = sub_solutions[idx]
+            spe.prev_solution = sub_prev_solution[idx]
+            spe.test_function = sub_test_functions[idx]
 
     def define_meshtags_and_measures(self):
         """Defines the facet and volume meshtags of the model which are used
@@ -642,9 +643,6 @@ class HydrogenTransportProblem:
                 if self.settings.transient:
                     self.formulation += ((u - u_n) / self.dt) * v * self.dx(vol.id)
 
-        # TODO add interfaces
-        # insert interface mixed formulation
-
         for reaction in self.reactions:
             for reactant in reaction.reactant:
                 if isinstance(reactant, F.Species):
@@ -682,7 +680,6 @@ class HydrogenTransportProblem:
                     * self.ds(bc.subdomain.id)
                 )
 
-        # TODO remove this since trapped species can now be only defined in 1 subdomain?
         # check if each species is defined in all volumes
         if not self.settings.transient:
             for spe in self.species:
