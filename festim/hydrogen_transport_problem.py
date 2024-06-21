@@ -231,8 +231,8 @@ class HydrogenTransportProblem:
 
     def initialise(self):
         self.create_species_from_traps()
-        self.define_function_spaces()
         self.define_meshtags_and_measures()
+        self.define_function_spaces()
         self.assign_functions_to_species()
 
         self.t = fem.Constant(self.mesh.mesh, 0.0)
@@ -393,12 +393,24 @@ class HydrogenTransportProblem:
         D.interpolate(D_expr)
         return D, D_expr
 
+    def create_submeshes(self):
+        """
+        Creates submeshes for each volume subdomain
+        """
+        for subdomain in self.volume_subdomains:
+            # TODO document these new attributes
+            subdomain.submesh, subdomain.submesh_to_mesh, subdomain.v_map = dolfinx.mesh.create_submesh(
+                self.mesh.mesh, self.mesh.vdim, self.volume_meshtags.find(subdomain.id)
+            )[0:3]
+
+
     def define_function_spaces(self):
         """Creates the function space of the model, creates a mixed element if
         model is multispecies. Creates the main solution and previous solution
         function u and u_n. Create global DG function spaces of degree 0 and 1
         for the global diffusion coefficient"""
 
+        self.create_submeshes()
         degree = 1
         element_CG = basix.ufl.element(
             basix.ElementFamily.P,
@@ -643,6 +655,9 @@ class HydrogenTransportProblem:
                 if self.settings.transient:
                     self.formulation += ((u - u_n) / self.dt) * v * self.dx(vol.id)
 
+        # TODO add interfaces
+        # insert interface mixed formulation
+
         for reaction in self.reactions:
             for reactant in reaction.reactant:
                 if isinstance(reactant, F.Species):
@@ -680,6 +695,7 @@ class HydrogenTransportProblem:
                     * self.ds(bc.subdomain.id)
                 )
 
+        # TODO remove this since trapped species can now be only defined in 1 subdomain?
         # check if each species is defined in all volumes
         if not self.settings.transient:
             for spe in self.species:
