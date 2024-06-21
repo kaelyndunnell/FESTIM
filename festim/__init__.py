@@ -30,7 +30,7 @@ from .boundary_conditions.flux_bc import FluxBCBase, ParticleFluxBC, HeatFluxBC
 
 from .material import Material
 
-from .mesh.mesh import Mesh, MeshWithMeshtags
+from .mesh.mesh import Mesh
 from .mesh.mesh_1d import Mesh1D
 from .mesh.mesh_from_xdmf import MeshFromXDMF
 
@@ -60,3 +60,4 @@ from .exports.vtx import VTXExport, VTXExportForTemperature
 from .exports.xdmf import XDMFExport
 
 from .reaction import Reaction
+from .hydrogen_transport_problem_discontinuity import HydrogenTransportProblemDiscontinuity

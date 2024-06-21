@@ -93,12 +93,3 @@ class Mesh:
         )
 
         return facet_meshtags, volume_meshtags
-
-class MeshWithMeshtags(Mesh):
-    def __init__(self, mesh=None, cell_tags=None, facet_tags=None):
-        super().__init__(mesh)
-        self.cell_tags = cell_tags
-        self.facet_tags = facet_tags
-    
-    def define_meshtags(self, surface_subdomains, volume_subdomains):
-        return self.facet_tags, self.cell_tags

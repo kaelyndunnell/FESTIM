@@ -144,8 +144,10 @@ t_parent_to_facet[t_facet_to_parent] = np.arange(len(t_facet_to_parent), dtype=n
 
 import festim as F
 
-my_problem = F.HydrogenTransportProblem()
-my_problem.mesh = F.MeshWithMeshtags(mesh, ct, mt)
+my_problem = F.HydrogenTransportProblemDiscontinuity()
+my_problem.mesh = F.Mesh(mesh)
+my_problem.facet_meshtags = mt
+my_problem.volume_meshtags = ct
 mat = F.Material(D_0=1, E_D=0)
 my_problem.subdomains = [
     F.VolumeSubdomain(id=3, material=mat),
@@ -162,5 +164,7 @@ my_problem.settings = F.Settings(
     transient=False
 )
 my_problem.temperature = 500
+
+my_problem.boundary_conditions = []
 
 my_problem.initialise()
