@@ -30,7 +30,7 @@ from .boundary_conditions.flux_bc import FluxBCBase, ParticleFluxBC, HeatFluxBC
 
 from .material import Material
 
-from .mesh.mesh import Mesh
+from .mesh.mesh import Mesh, MeshWithMeshtags
 from .mesh.mesh_1d import Mesh1D
 from .mesh.mesh_from_xdmf import MeshFromXDMF
 
