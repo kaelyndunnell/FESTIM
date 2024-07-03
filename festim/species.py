@@ -46,9 +46,10 @@ class Species:
         self.sub_function_space = None
         self.post_processing_solution = None
         self.collapsed_function_space = None
-        self.subdomain_to_function = {}
+        self.subdomain_to_solution = {}
         self.subdomain_to_test_function = {}
         self.subdomain_to_prev_solution = {}
+        self.subdomain_to_post_processing_solution = {}
 
     def __repr__(self) -> str:
         return f"Species({self.name})"
